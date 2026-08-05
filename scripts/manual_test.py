@@ -1,45 +1,31 @@
-import argparse
 import sys
-from pathlib import Path
-
 sys.path.append(".")
 from app.ingestion.loader import load_pdf
 from app.ingestion.chunker import chunk_pages, get_tokenizer
+from app.ingestion.embedder import get_embedding_model, embed_chunks, embed_query
+from app.retrieval.vector_store import VectorStore
 
-DEFAULT_PDF_PATH = "data/samples/test.pdf"
+pages = load_pdf("data/samples/your_file.pdf")
+print(f"Loaded {len(pages)} pages")
 
+tokenizer = get_tokenizer()
+chunks = chunk_pages(pages, tokenizer)
+print(f"Created {len(chunks)} chunks")
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Manually test the RAG ingestion pipeline against a PDF file.")
-    parser.add_argument(
-        "pdf_path",
-        nargs="?",
-        default=DEFAULT_PDF_PATH,
-        help=f"Path to the PDF file to ingest (default: {DEFAULT_PDF_PATH})",
-    )
-    return parser.parse_args()
+model = get_embedding_model()
+embeddings = embed_chunks(chunks, model)
+print(f"Embeddings shape: {embeddings.shape}")
 
+store = VectorStore(dim=embeddings.shape[1])
+store.add(embeddings, chunks)
+store.save("data/index/docuchat")
+print("Index saved to data/index/docuchat")
 
-def main() -> None:
-    args = parse_args()
-    pdf_path = Path(args.pdf_path)
+# --- try a real search ---
+query = "What is this document about?"  # change to something specific to your PDF
+query_embedding = embed_query(query, model)
+results = store.search(query_embedding, top_k=3)
 
-    if not pdf_path.is_file():
-        print(f"Error: PDF file not found at '{pdf_path}'")
-        print("Please provide a valid path, e.g.:")
-        print("    python scripts/manual_test.py path/to/your_file.pdf")
-        print(f"Or place a test PDF at the default location: {DEFAULT_PDF_PATH}")
-        sys.exit(1)
-
-    pages = load_pdf(str(pdf_path))
-    print(f"Loaded {len(pages)} pages")
-
-    tokenizer = get_tokenizer()
-    chunks = chunk_pages(pages, tokenizer)
-    print(f"Created {len(chunks)} chunks")
-    print("\n--- First chunk ---")
-    print(chunks[0])
-
-
-if __name__ == "__main__":
-    main()
+for r in results:
+    print(f"\n[score={r['score']:.3f}] page {r['page']}")
+    print(r['text'][:200])
