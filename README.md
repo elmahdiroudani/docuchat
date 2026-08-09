@@ -141,7 +141,7 @@ REST-API und Weboberfläche sind in Arbeit (siehe Roadmap).
 
 ## Lizenz
 
-Noch nicht festgelegt.
+Noch nicht festgelegt. Wird addiert
 
 ## Autor
 
